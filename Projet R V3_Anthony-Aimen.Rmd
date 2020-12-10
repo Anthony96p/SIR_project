@@ -1,0 +1,457 @@
+---
+title: "Projet R V1_Anthony/Aimen"
+author: "Anthony Pragassam et Aimen Cherif"
+date: "03/12/2020"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+Ce programme simule une épidémie selon le modèle SIR calculé grace à la méthode d'Euler et détermine le jour du pic de l'épidémie.
+
+
+## Initialisation des données
+
+Lien utilisé : Cours de Progamation R, Mr Runge Université D'Evry
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+S <- 300 #Personnes saines
+I <- 10 #Personnes infectées
+R <- 0 #Personnes retirées
+a <- 0.001 #Taux de transmission
+b <- 0.03 #Taux de guérison
+DeltaT <- 0.1 #Pas #Si DeltaT = 0, choix du pas optimal automatique
+Taille <- 300 #Nombre de jours choisi
+#S->I->R
+
+#Valeurs spéciales vaccination
+Tv <- 0.04 # Taux de vaccination pour un temps donné "fctTv"
+FctTv <- 7 #Temps en jour corespondant au taux de vaccination #ici pour 1 semaine
+
+#Valeurs spéciales mortalité
+Mu <- 0.02  #proba de mortalité pour un temps donné "fctTm"
+FctTm <-30  #Temps en jour corespondant a la proba de mortalité #ici pour 1 mois
+
+```
+
+## Code principale
+
+Liens : https://www.youtube.com/watch?v=mc4S0UIbIuY
+        http://math.colorado.edu/~stade/CLS/Section_1_3.pdf
+        https://abcdr.thinkr.fr/comment-appliquer-des-conditions-sur-r-if-else-elseif/
+        https://www.datamentor.io/r-programming/repeat-loop/
+        http://www.sthda.com/french/wiki/fusion-des-donnees-avec-r
+        https://www.r-bloggers.com/lang/uncategorized/160
+        https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/NA
+        Cours de Progamation R, Mr Runge Université D'Evry
+
+
+```{r euler + detectPic}
+
+#############Fonction_1#############
+
+#S->I->R
+
+euler<-function(Sbis,Ibis,Rbis,a,b,deltaT,taille)  # fonction calculant à  chaque tour l'évolution des variables S, I et R
+{
+  J<-0  #Non modulable       #Jour 0
+  
+  if (deltaT==0) {
+    deltaT <- 30/(Sbis + Ibis +Rbis)  #Si deltaT = 0, choix du pas optimal automatique en fonction de l’effectif de départ choisi
+  }
+  
+  resul<-data.frame(S, I, R, J) #création d’un data frame pour nos données
+  colnames(resul) <- c("S","I","R","J")  #nommage des colonnes  
+  repeat{
+    J <- J+deltaT #Compteur de jours
+
+    #création de variables memoire
+    Suc <- Sbis 
+    Reco <- Rbis
+    Infect <- Ibis
+    #approximation d’Euler
+    Sbis <- Suc + (-a * Suc * Infect)*deltaT
+    Rbis <- Reco + (b * Infect)*deltaT
+    Ibis <- (Suc+Infect+Reco) - Sbis - Rbis
+    
+    SIR <- data.frame(Sbis,Ibis,Rbis,J)
+    colnames(SIR) <- c("S","I","R","J")
+    resul<-rbind(resul,SIR)  #concaténation des nouvelles lignes avec la première ligne du tableau
+    
+    if (J>=taille) break; #arrêt de la boucle si nombre de jour atteint 
+  }
+  return(resul) #retourne le tableau final
+
+}
+results<-euler(S ,I ,R,a ,b,DeltaT,Taille) #application sur les valeurs de départ
+results
+
+
+
+
+#############Fonction_2#############
+
+detectPic<-function(resul,a,b) #Fonction qui détermine les coordonnées du pic
+{
+  St<- b/a  #Calcul du nombre de personnes saines théorique au moment du pic d'infectées
+  
+  Ipeaks<-resul[resul$I == max(resul$I),][1,]$I   #Nombre d’ infectées au jour du pic
+  Tpeaks<-resul[resul$I == max(resul$I),][1,]$J   #Jour du pic d'infectées 
+  Coord<-data.frame(Ipeaks,Tpeaks) #dataframe jour du pic et nbr d’infectées correspondant
+
+#Si pas de pic, retourner un message à l’utilisateur
+  if(is.na(Coord$Tpeaks)==TRUE){
+    print("DetectPic : Le pic n'a pas pu être détecté ")
+  }
+  return(Coord) #retourne tableau de pic ou message
+}
+
+Coordpeaks<-detectPic(results,a,b) #application sur notre tableau d’euler #detecte le pic
+Coordpeaks
+
+
+
+
+```
+
+
+## Plot principale
+
+Liens : https://sites.google.com/site/rgraphiques/realiser-des-graphiques-avec-le-logiciel-r/les-graphiques/courbes-multiples-et-r%C3%A9gressions
+        http://www.sthda.com/french/wiki/fonction-abline-de-r-comment-ajouter-facilement-une-droite-a-un-graphique
+        http://www.sthda.com/french/wiki/ajouter-du-texte-a-un-graphique-avec-le-logiciel-r
+        Cours de Progamation R, Mr Runge Université D'Evry
+
+```{r pressure, echo=FALSE}
+
+matplot( results[,4],results[, 1:3], type="l", lty=1,xlab = "Jours", ylab = "Nombre de personnes") # affichage du dataframe #graphe nbr de personnes en fonction du temps
+St<-b/a #Calcul du nombre de personnes saines théorique au moment du pic d'infectées
+abline(h=St,v=Coordpeaks$Tpeaks, col="blue") #Lignes verticale et horizontale pour détecter le pic
+text((Coordpeaks$Tpeaks+(Taille/15)), Coordpeaks$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaks$Tpeaks,Coordpeaks$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaks$Tpeaks)), side=3) #Titre= Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+legend("topright", col=1:3, legend=c("S", "I", "R"), lwd=1) #légendes en haut a droite
+
+```
+
+# # Code vaccination
+
+```{r}
+
+#############Fonction_3#############
+
+#S->I->R
+#S---->R
+
+eulervacci<-function(Sbis,Ibis,Rbis,a,b,deltaT,taille,tv,fctT) # fonction calculant à  chaque tour l’évolution des variables S, I et R
+{
+  J<-0  #Non modulable       #Jour 0
+  
+  if (deltaT==0) {
+    deltaT <- 30/(Sbis + Ibis +Rbis) #Si deltaT = 0, choix du pas optimal automatique
+  }
+  resul<-data.frame(S, I, R, J)
+  colnames(resul) <- c("S","I","R","J") 
+  
+  repeat{
+    J <- J+deltaT #Compteur de jours
+    #création de variables memoire
+    Suc <- Sbis
+    Reco <- Rbis
+    Infect <- Ibis    
+
+    pV<-(rbinom(1,round(Suc),tv))    #loi binomial generant le taux à retirer de S
+    
+    Sbis <- Suc + (-a * Suc * Infect)*deltaT - (pV/(1/deltaT)) #taux retiré de S à chaque jour
+    Rbis <- Reco + (b * Infect)*deltaT + (pV/(1/deltaT)) #taux affecté à R à chaque jour
+    Ibis <- (Suc+Infect+Reco) - Sbis - Rbis 
+    SIR <- data.frame(Sbis,Ibis,Rbis,J)
+    colnames(SIR) <- c("S","I","R","J");
+    resul<-rbind(resul,SIR) #concaténation des nouvelles lignes avec la première ligne du tableau
+    
+    if (J>=taille) break #arrêt de la boucle si nombre de jour atteint
+  }
+  return(resul) #retourne le tableau final
+
+}
+resultsvacci<-eulervacci(S ,I ,R,a ,b,DeltaT,Taille,Tv,FctT) #application sur les valeurs de départ
+resultsvacci
+
+
+
+#############Fonction_2#############
+
+detectPic<-function(resul,a,b) #Fonction qui détermine les coordonées du pic
+{
+  St<-b/a # Calcul du nombre de personnes saines théorique au moments du pic du nombres d'infecté
+  
+  Ipeaks<-resul[resul$I == max(resul$I),][1,]$I #Nombre de personne infectés au jour du pic 
+  Tpeaks<-resul[resul$I == max(resul$I),][1,]$J #Jour du pic du d'infecté 
+  Coord<-data.frame(Ipeaks,Tpeaks) #dataframe jour du pic et nbr d’infectées correspondant
+  
+  #Si pas de pic, retourner un message à l’utilisateur
+  if(is.na(Coord$Tpeaks)==TRUE){
+    print("DetectPic : Le pic n'a pas pu être détecté")
+  }
+  return(Coord)#retourne tableau de pic ou message
+}
+
+Coordpeaksvacci<-detectPic(resultsvacci,a,b)#application sur notre tableau d’euler #detecte le pic
+Coordpeaksvacci
+
+
+```
+
+
+
+# # Plot principale + Vaccination
+
+
+```{r}
+
+#############Plot principale#############
+
+matplot( results[,4],results[, 1:3], type="l", lty=1,xlab = "Jours", ylab = "Nombre de personnes")           # affichage du dataframe #graphe nbr de personnes en fonction du temps
+St<-b/a #Calcul du nombre de personnes saines théorique au moment du pic d'infectées
+abline(h=St,v=Coordpeaks$Tpeaks, col="blue") #Lignes verticale et horizontale pour détecter le pic
+text((Coordpeaks$Tpeaks+(Taille/15)), Coordpeaks$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaks$Tpeaks,Coordpeaks$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaks$Tpeaks)), side=3) #Titre= Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+legend("topright", col=1:3, legend=c("S", "I", "R"), lwd=1) #légendes en haut a droite
+
+
+#############Plot vaccination#############
+
+matplot( resultsvacci[,4],resultsvacci[, 1:3], type="l", lty=1,xlab = "Jours", ylab = "Nombre de personnes") #affichage du data frame sous forme de graph en fontion du temps
+St<-b/a #Calcul du nombre de personnes saines théorique au moment du pic d'infectées abline(h=St,v=Coordpeaksvacci$Tpeaks, col="blue") #Lignes verticale et horizontale pour détecter le pic
+text((Coordpeaksvacci$Tpeaks+(Taille/15)), Coordpeaksvacci$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaksvacci$Tpeaks,Coordpeaksvacci$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic, avec vaccination, est atteint à  t =",round(Coordpeaksvacci$Tpeaks)), side=3)  #Titre= Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+legend("topright", col=1:3, legend=c("S", "I", "R"), lwd=1)  #légendes en haut a droite
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+# # Code mortalitée
+
+Lien : https://interstices.info/modeliser-la-propagation-dune-epidemie/
+
+```{r}
+
+#############Fonction_4#############
+
+#SIDR
+#S->I->R
+#   I->D
+
+eulermorta<-function(Sbis,Ibis,Rbis,a,b,deltaT,taille,mu,fctTm) # fonction calculant à chaque tour l’évolution des variables S, I et R
+{
+  J<-0    #Non modulable       #Jour 0
+  total <- (Sbis + Ibis + Rbis)
+  
+  if (deltaT==0) {
+    deltaT <- 30/(Sbis + Ibis +Rbis) #Si deltaT = 0, choix du pas optimal automatique
+  }
+  
+  total <- (Sbis + Ibis + Rbis)
+  listeSIR<-data.frame(Sbis, Ibis, Rbis,total, J)
+  colnames(listeSIR) <- c("S","I","R","total","J") 
+  resul<-listeSIR
+  
+  repeat{
+    total <- (Sbis + Ibis + Rbis)
+    J <- J+deltaT #Compteur de jours
+    
+    
+    Suc <- Sbis
+    Reco <- Rbis
+    Infect <- Ibis
+    
+    Tm<-(rbinom(1,round(Infect),mu)) #loi binomiale générant un taux à retirer de I
+    
+    Sbis <- Suc + (-a * Suc * Infect)*deltaT
+    Rbis <- Reco + (b * Infect)*deltaT
+    Ibis <- (Suc+Infect+Reco) - Sbis - Rbis-((Tm/(30/deltaT))) #On retire de I un taux par mois
+    
+    SIR <- data.frame(Sbis,Ibis,Rbis,total,J)
+    colnames(SIR) <- c("S","I","R","total","J");
+    resul<-rbind(resul,SIR) #concaténation des nouvelles lignes avec la première ligne du tableau
+    
+    if (J>=taille) break #arrêt de la boucle si nombre de jour atteint
+  }
+  return(resul) 
+
+}
+resultsmorta<-eulermorta(S ,I ,R,a ,b,DeltaT,Taille,Mu,FctTm) 
+resultsmorta
+
+
+#############Fonction_2#############
+
+detectPic<-function(resul,a,b) #Fonction qui détermine les coordonnées du pic
+{
+  St<- b/a  #Calcul du nombre de personnes saines théorique au moment du pic d'infectées
+  
+  Ipeaks<-resul[resul$I == max(resul$I),][1,]$I   #Nombre d’ infectées au jour du pic
+  Tpeaks<-resul[resul$I == max(resul$I),][1,]$J   #Jour du pic d'infectées 
+  Coord<-data.frame(Ipeaks,Tpeaks) #dataframe jour du pic et nbr d’infectées correspondant
+
+#Si pas de pic, retourner un message à l’utilisateur
+  if(is.na(Coord$Tpeaks)==TRUE){
+    print("DetectPic : Le pic n'a pas pu être détecté ")
+  }
+  return(Coord) #retourne tableau de pic ou message
+}
+
+
+Coordpeaksmorta<-detectPic(resultsmorta,a,b)#application sur notre tableau d’euler #detecte le pic
+Coordpeaksmorta
+
+```
+
+
+## Plot avec mortalité
+
+Liens : https://sites.google.com/site/rgraphiques/realiser-des-graphiques-avec-le-logiciel-r/les-graphiques/courbes-multiples-et-r%C3%A9gressions
+        http://www.sthda.com/french/wiki/fonction-abline-de-r-comment-ajouter-facilement-une-droite-a-un-graphique
+        http://www.sthda.com/french/wiki/ajouter-du-texte-a-un-graphique-avec-le-logiciel-r
+        Cours de Progamation R, Mr Runge Université D'Evry
+
+```{r}
+matplot( resultsmorta[,5],resultsmorta[, 1:4], type="l", lty=1,col=c(1,2,3,"gold"),lwd=c(1,1,1,2),xlab = "Jours", ylab = "Nombre de personnes") # affichage du data frame en graphe nbr de personnes en fonction du temps
+St<-b/a # Calcul du nombre de personnes saines théorique au moment du pic du nombre d'infectés
+abline(h=St,v=Coordpeaksmorta$Tpeaks, col="blue") #Lignes verticale et horizontale pour déterminer le pic
+text((Coordpeaksmorta$Tpeaks+(Taille/15)), Coordpeaksmorta$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaksmorta$Tpeaks,Coordpeaksmorta$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint Ã  t =",round(Coordpeaksmorta$Tpeaks)), side=3) # Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+legend("topright", col=c(1,2,3,"gold"), legend=c("S", "I", "R","Effectifs"), lwd=c(1,1,1,2)) #légendes
+
+
+```
+
+# # Code maladie saisonière
+
+
+############Pas encore bien fonctionel(Start)#############
+
+
+```{r}
+#############Fonction_5#############
+
+#S->I->R->S
+
+eulersaison<-function(Sbis,Ibis,Rbis,a,b,deltaT,taille) # fonction calculant à chaque tour l'évolution des variables S, I et R
+{
+  J<-0 #Non modulable       #Jour 0
+  
+  if (deltaT==0) {
+    deltaT <- 30/(Sbis + Ibis +Rbis) #Si deltaT = 0, choix du pas optimal automatique
+  }
+  
+  listeSIR<-data.frame(S, I, R, J)
+  colnames(listeSIR) <- c("S","I","R","J") 
+  resul<-listeSIR
+  
+  repeat{
+    J <- J+deltaT #Compteur de jour
+    
+    Suc <- Sbis
+    Reco <- Rbis
+    Infect <- Ibis
+    
+    H<-rbinom(1,round(Reco),(1))#loi binomiale générant un taux à retirer de R pour S
+    
+    Sbis <- Suc + (-a * Suc * Infect)*deltaT + H/(365/deltaT) #taux ajouté de S à chaque jour
+    Rbis <- Reco + (b * Infect)*deltaT - H/(365/deltaT) #taux retiré de S à chaque jour
+    Ibis <- (Suc+Infect+Reco) - Sbis - Rbis
+    
+    SIR <- data.frame(Sbis,Ibis,Rbis,J)
+    colnames(SIR) <- c("S","I","R","J");
+    resul<-rbind(resul,SIR);#concaténation des nouvelles lignes avec la première ligne du tableau
+    
+    if (J>=taille) break;#arrêt de la boucle si nombre de jour atteint
+  }
+  return(resul)#retourne le tableau final
+  
+}
+
+resultssaison<-eulersaison(S ,I ,R ,a ,b,DeltaT,Taille)#application sur les valeurs de départ
+resultssaison
+#############Fonction_2#############
+
+detectPic<-function(resul,a,b) #Fonction qui détermine les coordonnées du pic
+{
+  St<- b/a  #Calcul du nombre de personnes saines théorique au moment du pic d'infectées
+  
+  Ipeaks<-resul[resul$I == max(resul$I),][1,]$I   #Nombre d’ infectées au jour du pic
+  Tpeaks<-resul[resul$I == max(resul$I),][1,]$J   #Jour du pic d'infectées 
+  Coord<-data.frame(Ipeaks,Tpeaks) #dataframe jour du pic et nbr d’infectées correspondant
+
+#Si pas de pic, retourner un message à l’utilisateur
+  if(is.na(Coord$Tpeaks)==TRUE){
+    print("DetectPic : Le pic n'a pas pu être détecté ")
+  }
+  return(Coord) #retourne tableau de pic ou message
+}
+
+
+Coordpeakssaison<-detectPic(resultssaison,a,b)#application sur notre tableau d’euler #detecte le pic
+Coordpeakssaison
+
+?norm
+
+
+```
+
+
+## Plot maladie saisonière
+
+Liens : https://sites.google.com/site/rgraphiques/realiser-des-graphiques-avec-le-logiciel-r/les-graphiques/courbes-multiples-et-r%C3%A9gressions
+        http://www.sthda.com/french/wiki/fonction-abline-de-r-comment-ajouter-facilement-une-droite-a-un-graphique
+        http://www.sthda.com/french/wiki/ajouter-du-texte-a-un-graphique-avec-le-logiciel-r
+        Cours de Progamation R, Mr Runge Université D'Evry
+
+```{r pressure, echo=FALSE}
+
+matplot( resultssaison[,4],resultssaison[, 1:3], type="l", lty=1,xlab = "Jours", ylab = "Nombre de personnes") # affichage du data frame sous forme de graph en fontion du temps
+St<-b/a #Calcul du nombre de personnes saines théorique au moments du pic du nombres d'infecté
+abline(h=St,v=Coordpeakssaison$Tpeaks, col="blue") #Lignes verticale et horizontale pour déterminer le pic
+text((Coordpeakssaison$Tpeaks+(Taille/15)), Coordpeakssaison$Ipeaks+((S+I+R)/15), "Pic de I") #teste pour légender le point
+points(Coordpeakssaison$Tpeaks,Coordpeakssaison$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à t =",round(Coordpeakssaison$Tpeaks)), side=3) # Jour du pic de personnes infectés (Arrondis pour plus de clarté)
+legend("topright", col=1:3, legend=c("S", "I", "R"), lwd=1) #légendes
+
+```
+
+
+############Pas encore bien fonctionel(Stop)#############
+
+
+
+Reste à faire:
+-Simuler Une maladie dont l'immunité aquise n'est pas durable dans le temps (ex: grippe saisonnière (donc qui revient chaque année par exemple)). (#Peut-etre en trop car cela relève du modère SIRS.#)
+
+-Mélanger les fonctions:
+ Exemple:
+  Une maladie avec un taux de mortalité et dont l'immunité aquise n'est pas durable dans le temps.
+  ->Problème : La population va tentre vers 0 (probablement car la simulation n'est pas complète car pas de natalité, de tranche d'ages séparés, etc...).
+  ->Solution : Ajouter un taux de vaccination suffisant pour limmiter la mortalité voir éradiquer la maladie.
+...
+
+Liens utiles pour la suite:
+https://youtu.be/OCLtIM7c2DA
