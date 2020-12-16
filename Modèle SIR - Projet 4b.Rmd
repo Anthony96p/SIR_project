@@ -1,0 +1,233 @@
+---
+title: "Modèle SIR - Projet 4b"
+author: "Anthony Pragassam et Aimen Cherif"
+date: "17/12/2020"
+output:
+  prettydoc::html_pretty:
+    toc: true
+    theme: hpstr
+    highlight: github
+  pdf_document: default
+---
+
+Le modèle épidémiologique SIR divise la population en différents compartiments en fonction de leurs etat par rapport à la maladie. 
+
+Un individu commence en tant que susceptible (S), peut devenir infecté (I) puis se remettre de sa maladie par le gain de l'immunité ou bien mourir. Il passe ainsi au compartiment R (retiré).
+
+
+# Initialisation des données
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+#devtools::install_github("Anthony96p/SIReulerprojetR")
+library(SIReulerprojetR)
+
+S <- 500 #Personnes saines
+I <- 10 #Personnes infectées
+R <- 0 #Personnes retirées
+a <- 0.001 #Coefficients de transmission
+b <- 0.03 #Coefficients de guérison
+DeltaT <- 0.1 #Pas 
+Taille <- 150 #Nombre de jours choisi
+
+#S -> I -> R
+```
+Nous partons d'une population insulaire de 510 personnes. Nous allons observé l'évolution d'une épidémie sur 150 jours avec 10 personnes infectées au départ.
+
+# Code principal
+
+Le SIR est un modèle basé sur un système d’équations différentielle.
+La résolution du système repose sur le passage du continu au discret. On va donc utiliser des petit pas (deltaT) pour résoudre à l’instant suivant par rapport à l’instant actuel (*la méthode d’Euler*) :
+
+```{r euler + detectPic}
+
+results<-euler(S ,I ,R,a ,b,DeltaT,Taille)
+
+# Exemple:
+# S(t+1) <- S(t) + (-a * S(t) * I(t)) * deltaT
+# R(t+1) <- R(t) + (b * I(t)) * deltaT
+# I(t+1) <- (S(t) + I(t) + R(t)) - S(t+1) - R(t+1)
+
+Coordpeaks<-detectPic(results,a,b) 
+#application sur notre tableau d’euler #detecte le pic
+
+```
+
+
+
+# Plot principal
+```{r Principale, echo=FALSE}
+
+matplot( results[,4],results[, 1:3], type="l", lty=1,xlab = "Jours", ylab = "Nombre de personnes") # affichage du dataframe #graphe nbr de personnes en fonction du temps
+St<-b/a #Calcul du nombre de personnes saines théorique au moment du pic d'infectées
+abline(h=St,v=Coordpeaks$Tpeaks, col="blue") #Lignes verticale et horizontale pour détecter le pic
+text((Coordpeaks$Tpeaks+(Taille/15)), Coordpeaks$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaks$Tpeaks,Coordpeaks$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaks$Tpeaks)), side=3) #Titre= Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+legend("topright", col=1:3, legend=c("S", "I", "R"), lwd=1) #légendes en haut a droite
+
+```
+
+# Cas d'une maladie mortelle
+A partir d'ici, le compartiment R ne contiendra que les personnes immunisés. Les personnes mortes seront retirées du modèle.
+
+## Comment le taux de mortalité est prit en compte dans la simulation ?
+```{r}
+
+#Valeurs spéciales mortalité
+Mu <- 0.2  #proba de mortalité par mois
+
+resultsmorta<-eulermorta(S ,I ,R,a ,b,DeltaT,Taille,Mu) 
+
+Coordpeaksmorta<-detectPic(resultsmorta,a,b)
+#application sur notre tableau d’euler #detecte le pic
+
+R0 <- (a * S)/b
+```
+
+
+## Plot de cette maladie
+
+La ligne horizontale correspond à la capacité hospitalière.
+Si le nombre d'infecté est inferieur à la capacité hospitalière, le taux de mortalité est fortement diminué.
+```{r Mortalité, echo=FALSE}
+R0 <- (a * S)/b
+
+matplot( resultsmorta[,5],resultsmorta[, 1:4], type="l", lty=1,col=c(1,2,3,"gold"),lwd=c(1,1,1,2),xlab = "Jours", ylab = "Nombre de personnes") # affichage du data frame en graphe nbr de personnes en fonction du temps
+St<-b/a # Calcul du nombre de personnes saines théorique au moment du pic du nombre d'infectés
+
+abline(v=Coordpeaksmorta$Tpeaks, col="blue") #Ligne verticale pour déterminer le pic
+abline(h=(1/3*(S+I+R)), col="darkmagenta") #Ligne horizontale capacité hospitalière
+
+text((Coordpeaksmorta$Tpeaks+(Taille/15)), Coordpeaksmorta$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaksmorta$Tpeaks,Coordpeaksmorta$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaksmorta$Tpeaks)), side=3) # Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+mtext(paste("Il y a",(S+I+R)-round(resultsmorta[resultsmorta$total == min(resultsmorta$total),][1,]$total),"morts "), side=4)
+legend("topright", col=c(1,2,3,"gold"), legend=c("S", "I", "R","Effectifs"), lwd=c(1,1,1,2)) #légendes
+
+
+```
+
+R0 est l'estimation du nombre moyens de personne qu'un malade contamine.
+```{r echo=FALSE}
+paste("Le R0 initial est à",floor(R0))
+```
+
+
+Le but de cette présentation va être de controler la taille du pic et de mieux répartir le nombre d'infectés dans le temps afin de ne pas dépasser la capacité des hopitaux et de diminuer la mortalité.
+
+# Si les gestes barrières sont respectés
+
+## Explication des changements au code, apportés par le respect des gestes barrières.
+```{r}
+
+a <- 0.0004 # Coefficients de transmission avec gestes barrières
+
+resultsmortabarriere<-eulermorta(S ,I ,R,a ,b,DeltaT,Taille,Mu) 
+
+Coordpeaksmorta<-detectPic(resultsmortabarriere,a,b)
+#application sur notre tableau d’euler #detecte le pic
+
+
+```
+
+
+## Plot avec gestes barrières
+```{r Gestes barrières, echo=FALSE}
+R0 <- (a * S)/b
+
+matplot( resultsmortabarriere[,5],resultsmortabarriere[, 1:4], type="l", lty=1,col=c(1,2,3,"gold"),lwd=c(1,1,1,2),xlab = "Jours", ylab = "Nombre de personnes") # affichage du data frame en graphe nbr de personnes en fonction du temps
+St<-b/a # Calcul du nombre de personnes saines théorique au moment du pic du nombre d'infectés
+abline(v=Coordpeaksmorta$Tpeaks, col="blue") #Ligne verticale pour déterminer le pic
+abline(h=(1/3*(S+I+R)), col="darkmagenta") #Ligne horizontale capacité hospitalière
+text((Coordpeaksmorta$Tpeaks+(Taille/15)), Coordpeaksmorta$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaksmorta$Tpeaks,Coordpeaksmorta$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaksmorta$Tpeaks)), side=3) # Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+mtext(paste("Il y a",(S+I+R)-round(resultsmortabarriere[resultsmortabarriere$total == min(resultsmortabarriere$total),][1,]$total),"morts "), side=4)
+legend("topright", col=c(1,2,3,"gold"), legend=c("S", "I", "R","Effectifs"), lwd=c(1,1,1,2)) #légendes
+
+paste("Le R0 initial est à",round(R0))
+```
+
+
+
+# Lorsqu'en plus, une campagne de vaccination est faite *durant l'épidémie*
+
+## Comment le taux de vaccination est prit en compte dans la simulation ?
+```{r}
+#Valeurs spéciales vaccination
+Tv <- 0.05 # Coefficients de vaccination par semaines
+
+resultsvacci<-eulermortavacci(S ,I ,R,a ,b,DeltaT,Taille,Mu,Tv) 
+
+Coordpeaksvacci<-detectPic(resultsvacci,a,b)
+#application sur notre tableau d’euler #detecte le pic
+
+```
+
+
+
+## Plot avec la campagne de vaccination
+
+
+```{r Vaccination, echo=FALSE}
+
+
+matplot( resultsvacci[,5],resultsvacci[, 1:4], type="l", lty=1,col=c(1,2,3,"gold"),lwd=c(1,1,1,2),xlab = "Jours", ylab = "Nombre de personnes") # affichage du data frame en graphe nbr de personnes en fonction du temps
+St<-b/a # Calcul du nombre de personnes saines théorique au moment du pic du nombre d'infectés
+
+abline(v=Coordpeaksvacci$Tpeaks, col="blue") #Ligne verticale pour déterminer le pic
+abline(h=(1/3*(S+I+R)), col="darkmagenta") #Ligne horizontale capacité hospitalière
+
+text((Coordpeaksvacci$Tpeaks+(Taille/15)), Coordpeaksvacci$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaksvacci$Tpeaks,Coordpeaksvacci$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaksvacci$Tpeaks)), side=3) # Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+mtext(paste("Il y a",(S+I+R)-round(resultsvacci[resultsvacci$total == min(resultsvacci$total),][1,]$total),"morts "), side=4)
+legend("topright", col=c(1,2,3,"gold"), legend=c("S", "I", "R","Effectifs"), lwd=c(1,1,1,2)) #légendes
+
+
+```
+
+# Si la campagne de vaccination a commencé avant le début de l'épidémie
+
+## La simulation d'une vaccination précoce d'une population. 
+```{r}
+
+S <- 400 #Personnes saines
+I <- 10 #Personnes infectées
+R <- 100 #Personnes retirées
+
+resultsvaccit0<-eulermortavacci(S ,I ,R,a ,b,DeltaT,Taille,Mu,Tv) 
+
+Coordpeaksmorta<-detectPic(resultsvaccit0,a,b)
+#application sur notre tableau d’euler #detecte le pic
+
+```
+
+
+## Plot avec une campagne de vaccination précoce
+
+
+```{r Vaccination t0, echo=FALSE}
+R0 <- (1/b) * a * S
+
+matplot( resultsvaccit0[,5],resultsvaccit0[, 1:4], type="l", lty=1,col=c(1,2,3,"gold"),lwd=c(1,1,1,2),xlab = "Jours", ylab = "Nombre de personnes") # affichage du data frame en graphe nbr de personnes en fonction du temps
+St<-b/a # Calcul du nombre de personnes saines théorique au moment du pic du nombre d'infectés
+
+abline(v=Coordpeaksmorta$Tpeaks, col="blue") #Ligne verticale pour déterminer le pic
+abline(h=(1/3*(S+I+R)), col="darkmagenta") #Ligne horizontale capacité hospitalière
+
+text((Coordpeaksmorta$Tpeaks+(Taille/15)), Coordpeaksmorta$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaksmorta$Tpeaks,Coordpeaksmorta$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaksmorta$Tpeaks)), side=3) # Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+mtext(paste("Il y a",(S+I+R)-round(resultsvaccit0[resultsvaccit0$total == min(resultsvaccit0$total),][1,]$total),"morts "), side=4)
+legend("topright", col=c(1,2,3,"gold"), legend=c("S", "I", "R","Effectifs"), lwd=c(1,1,1,2)) #légendes
+paste("Le R0 initial est à",round(R0))
+
+```
+# Conclusion
+
+Avec toutes ces mesures, le R0 et la motalité de cette maladie ont bien été diminués.
+
+...
