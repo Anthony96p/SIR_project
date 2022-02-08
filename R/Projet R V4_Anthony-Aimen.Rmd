@@ -1,0 +1,189 @@
+---
+title: "Projet R V1_Anthony/Aimen"
+author: "Anthony Pragassam et Aimen Cherif"
+date: "03/12/2020"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+Ce programme simule une épidémie selon le modèle SIR calculé grace à la méthode d'Euler et détermine le jour du pic de l'épidémie.
+Il peut aussi faire la simulation avec taux de vaccination prit par la population saine.
+Il peut aussi faire la simulation d'une maladie ayant un taux de mortalité significatif impliquant une baisse de la population.
+
+
+
+## Initialisation des données
+
+Lien utilisé : Cours de Progamation R, Mr Runge Université D'Evry
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+
+devtools::install_github("Anthony96p/SIReulerprojetR")
+library(SIReulerprojetR)
+
+S <- 500 #Personnes saines
+I <- 10 #Personnes infectées
+R <- 0 #Personnes retirées
+a <- 0.001 #Taux de transmission
+b <- 0.03 #Taux de guérison
+DeltaT <- 0.1#Pas #Si DeltaT = 0, choix du pas optimal automatique
+Taille <- 100 #Nombre de jours choisi
+#S->I->R
+
+#Valeurs spéciales vaccination
+Tv <- 0.04 # Taux de vaccination par semaines
+
+
+#Valeurs spéciales mortalité
+Mu <- 0.2  #proba de mortalité par mois
+
+
+
+```
+
+## Code principale
+
+Liens : https://www.youtube.com/watch?v=mc4S0UIbIuY
+        http://math.colorado.edu/~stade/CLS/Section_1_3.pdf
+        https://abcdr.thinkr.fr/comment-appliquer-des-conditions-sur-r-if-else-elseif/
+        https://www.datamentor.io/r-programming/repeat-loop/
+        http://www.sthda.com/french/wiki/fusion-des-donnees-avec-r
+        https://www.r-bloggers.com/lang/uncategorized/160
+        https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/NA
+        Cours de Progamation R, Mr Runge Université D'Evry
+
+
+```{r euler + detectPic}
+
+#############Fonction_1#############
+
+#S->I->R
+
+results<-euler(S ,I ,R,a ,b,DeltaT,Taille) #application sur les valeurs de départ
+
+#############Fonction_2#############
+
+Coordpeaks<-detectPic(results,a,b) #application sur notre tableau d’euler #detecte le pic
+
+
+
+```
+
+
+## Plot principale
+
+Liens : https://sites.google.com/site/rgraphiques/realiser-des-graphiques-avec-le-logiciel-r/les-graphiques/courbes-multiples-et-r%C3%A9gressions
+        http://www.sthda.com/french/wiki/fonction-abline-de-r-comment-ajouter-facilement-une-droite-a-un-graphique
+        http://www.sthda.com/french/wiki/ajouter-du-texte-a-un-graphique-avec-le-logiciel-r
+        Cours de Progamation R, Mr Runge Université D'Evry
+
+```{r pressure, echo=FALSE}
+
+matplot( results[,4],results[, 1:3], type="l", lty=1,xlab = "Jours", ylab = "Nombre de personnes") # affichage du dataframe #graphe nbr de personnes en fonction du temps
+St<-b/a #Calcul du nombre de personnes saines théorique au moment du pic d'infectées
+abline(h=St,v=Coordpeaks$Tpeaks, col="blue") #Lignes verticale et horizontale pour détecter le pic
+text((Coordpeaks$Tpeaks+(Taille/15)), Coordpeaks$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaks$Tpeaks,Coordpeaks$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaks$Tpeaks)), side=3) #Titre= Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+legend("topright", col=1:3, legend=c("S", "I", "R"), lwd=1) #légendes en haut a droite
+
+```
+
+# # Code vaccination
+
+```{r}
+
+#############Fonction_3#############
+
+#S->I->R
+#S---->R
+
+resultsvacci<-eulervacci(S ,I ,R,a ,b,DeltaT,Taille,Tv) #application sur les valeurs de départ
+
+#############Fonction_2#############
+
+Coordpeaksvacci<-detectPic(resultsvacci,a,b)#application sur notre tableau d’euler #detecte le pic
+
+```
+
+
+
+# # Plot principale + Vaccination
+
+
+```{r}
+
+#############Plot principale#############
+
+matplot( results[,4],results[, 1:3], type="l", lty=1,xlab = "Jours", ylab = "Nombre de personnes")           # affichage du dataframe #graphe nbr de personnes en fonction du temps
+St<-b/a #Calcul du nombre de personnes saines théorique au moment du pic d'infectées
+abline(h=St,v=Coordpeaks$Tpeaks, col="blue") #Lignes verticale et horizontale pour détecter le pic
+text((Coordpeaks$Tpeaks+(Taille/15)), Coordpeaks$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaks$Tpeaks,Coordpeaks$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaks$Tpeaks)), side=3) #Titre= Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+legend("topright", col=1:3, legend=c("S", "I", "R"), lwd=1) #légendes en haut a droite
+
+
+#############Plot vaccination#############
+
+matplot( resultsvacci[,4],resultsvacci[, 1:3], type="l", lty=1,xlab = "Jours", ylab = "Nombre de personnes") #affichage du data frame sous forme de graph en fontion du temps
+St<-b/a #Calcul du nombre de personnes saines théorique au moment du pic d'infectées abline(h=St,v=Coordpeaksvacci$Tpeaks, col="blue")
+abline(h=St,v=Coordpeaks$Tpeaks, col="blue") #Lignes verticale et horizontale pour détecter le pic#Lignes verticale et horizontale pour détecter le pic
+text((Coordpeaksvacci$Tpeaks+(Taille/15)), Coordpeaksvacci$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaksvacci$Tpeaks,Coordpeaksvacci$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic, avec vaccination, est atteint à  t =",round(Coordpeaksvacci$Tpeaks)), side=3)  #Titre= Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+legend("topright", col=1:3, legend=c("S", "I", "R"), lwd=1)  #légendes en haut a droite
+
+
+
+
+```
+
+
+
+# # Code mortalitée
+
+Lien : https://interstices.info/modeliser-la-propagation-dune-epidemie/
+
+```{r}
+
+#############Fonction_4#############
+
+#SIDR
+#S->I->R
+#   I->D
+
+resultsmorta<-eulermorta(S ,I ,R,a ,b,DeltaT,Taille,Mu) 
+
+#############Fonction_2#############
+
+Coordpeaksmorta<-detectPic(resultsmorta,a,b)#application sur notre tableau d’euler #detecte le pic
+
+```
+
+
+## Plot avec mortalité
+
+Liens : https://sites.google.com/site/rgraphiques/realiser-des-graphiques-avec-le-logiciel-r/les-graphiques/courbes-multiples-et-r%C3%A9gressions
+        http://www.sthda.com/french/wiki/fonction-abline-de-r-comment-ajouter-facilement-une-droite-a-un-graphique
+        http://www.sthda.com/french/wiki/ajouter-du-texte-a-un-graphique-avec-le-logiciel-r
+        Cours de Progamation R, Mr Runge Université D'Evry
+
+```{r}
+matplot( resultsmorta[,5],resultsmorta[, 1:4], type="l", lty=1,col=c(1,2,3,"gold"),lwd=c(1,1,1,2),xlab = "Jours", ylab = "Nombre de personnes") # affichage du data frame en graphe nbr de personnes en fonction du temps
+St<-b/a # Calcul du nombre de personnes saines théorique au moment du pic du nombre d'infectés
+abline(h=(1/3*(S+I+R)),v=Coordpeaksmorta$Tpeaks, col="blue") #Lignes verticale et horizontale pour déterminer le pic
+text((Coordpeaksmorta$Tpeaks+(Taille/15)), Coordpeaksmorta$Ipeaks+((S+I+R)/15), "Pic de I") #texte pour légender le point
+points(Coordpeaksmorta$Tpeaks,Coordpeaksmorta$Ipeaks,col="red",pch=16) #Point permettant de localiser le pic
+mtext(paste("Le pic est atteint à  t =",round(Coordpeaksmorta$Tpeaks)), side=3) # Jour du pic de personnes infectées (Arrondis pour plus de clarté)
+mtext(paste("Il y a",(S+I+R)-round(resultsmorta[resultsmorta$total == min(resultsmorta$total),][1,]$total),"morts "), side=4)
+legend("topright", col=c(1,2,3,"gold"), legend=c("S", "I", "R","Effectifs"), lwd=c(1,1,1,2)) #légendes
+
+
+```
+
+...
